@@ -1,0 +1,4 @@
+Print("oiiii\r\n"");
+Print("Olá mundo\r\n"");
+
+Print("Teste ti\r\n"");
