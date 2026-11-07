@@ -1,8 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel.Design;
-using System.Runtime.InteropServices;
-using System.Text;
+﻿using System.Text;
+using Compilador.Constantes;
+using Compilador.Tokens;
 
 namespace Compilador.Lexico
 {
@@ -32,14 +30,10 @@ namespace Compilador.Lexico
             while (TemEntrada())
             { 
                 var atual = this.Input[Position++];
-                if(Constants.TOKENS_RESERVADOS.ContainsKey(atual.ToString()))
-                {
-                    return GetToken(atual.ToString());
-                }
 
                 if (char.IsWhiteSpace(atual) && sb.Length == 0) continue;
 
-                if (char.IsWhiteSpace(atual) || atual == ';')
+                if (char.IsWhiteSpace(atual))
                 {
                     var token = GetToken(sb.ToString());
 
@@ -58,6 +52,17 @@ namespace Compilador.Lexico
                     }
                     return token;
                 }
+
+                if(atual == ';')
+                {
+                    if (sb.Length == 0)
+                        return GetToken(atual.ToString());
+
+                    Position--;
+                    return GetToken(sb.ToString());
+                }
+                    
+
 
                 sb.Append(atual);
 

@@ -1,8 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using Compilador.Constantes;
 
-namespace Compilador
+namespace Compilador.Tokens
 {
     public class Token
     {
@@ -33,29 +34,50 @@ namespace Compilador
             return this.tokenType;
         }
 
+        public Tipos GetTipoToken()
+        {
+            var tipo = GetTokenType();
+            switch (tipo)
+            {
+                case (int)CodigosEnum.CODIGO_LITERAL_INT:
+                    return Tipos.INT;
+                case (int)CodigosEnum.CODIGO_LITERAL_BOOL:
+                    return Tipos.BOOL;
+                case (int)CodigosEnum.CODIGO_LITERAL_STRING:
+                    return Tipos.STRING;
+                case (int)CodigosEnum.CODIGO_LITERAL_DECIMAL:
+                    return Tipos.DECIMAL;
+                default:
+                    throw new InvalidOperationException("Token não é um token de tipo");
+
+            }
+
+        }
+
         public static int GetTokenTypeByLexeme(string lexeme)
         {
             if (Constants.TOKENS_RESERVADOS.ContainsKey(lexeme))
             {
                 return Constants.TOKENS_RESERVADOS[lexeme];
             }
-            else if(lexeme.StartsWith("\"") && lexeme.EndsWith("\""))
-            {
-                return 22; // String literal
-            }
+            
             else if(int.TryParse(lexeme, out _))
             {
-                return 21; // Integer literal
+                return (int)CodigosEnum.CODIGO_LITERAL_INT; // Integer literal
+            }
+            else if (lexeme.StartsWith("\"") && lexeme.EndsWith("\""))
+            {
+                return (int)CodigosEnum.CODIGO_LITERAL_STRING; // String literal
             }
             else if(decimal.TryParse(lexeme, out _))
             {
-                return 23; // Decimal literal
+                return (int)CodigosEnum.CODIGO_LITERAL_DECIMAL; // Decimal literal
             }
             else if (lexeme == "true" || lexeme == "false")
             {
-                return 24; // Boolean literal
+                return (int)CodigosEnum.CODIGO_LITERAL_BOOL; // Boolean literal
             }
-            return 25; // Identifier
+            return (int)CodigosEnum.CODIGO_IDENTIFIER; // Identifier
         }
     
         public void Push(Token token)

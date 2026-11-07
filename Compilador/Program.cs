@@ -1,16 +1,11 @@
-﻿
-
-
-using System.ComponentModel;
-using System.Text;
-using Compilador;
+﻿using Compilador;
 
 String conteudo = string.Empty;
 
 if (args.Length == 0)
 {
-    Console.WriteLine("Digite o código a ser compilado: ");
-     conteudo = Console.ReadLine();
+    Console.WriteLine(@"Digite o código a ser compilado: ");
+    conteudo = File.ReadAllText(@"C:\Users\supor\Documents\FURB\Sistema Operacional\Trabalho\Compilador\Compilador\testeTI.txt");
 
 }
 else

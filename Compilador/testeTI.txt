@@ -1,4 +1,6 @@
-Print("oiiii\r\n"");
-Print("Olá mundo\r\n"");
+int a;
+a = 20 + 5;
 
-Print("Teste ti\r\n"");
+int b = Read("Digite um valor");
+
+int c = a + b;
