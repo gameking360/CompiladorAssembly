@@ -5,6 +5,10 @@ extern WriteConsoleW
 extern ReadConsoleW
 section .data
 mascara_sinal dd 0x80000000
+fator_100       dd 100.0
+meio_decimal    dd 0.5
+limite_decimal  dd 9.0e16
+erro_decimal    dw 69, 82, 82, 79, 0 ; ERRO
 a dd 0
 constante_1 db 68, 0, 105, 0, 103, 0, 105, 0, 116, 0, 101, 0, 32, 0, 117, 0, 109, 0, 32, 0, 118, 0, 97, 0, 108, 0, 111, 0, 114, 0, 0
 constante_1_len equ ($ - constante_1) / 2
@@ -17,6 +21,8 @@ console_handle resq 1
 console_input resq 1
 buffer_input resw 257
                                             chars_read   resd 1
+buffer_print_decimal resw 32
+buffer_print_int resw 12
 
 section .text
 global main
@@ -70,6 +76,12 @@ pop rax
 add eax, ecx
 
 mov [rel b], eax
+mov ecx, [rel c]
+call ConverterInt
+pop rax
+                                    mov r8d, eax
+                                    pop rdx
+                                    call Print
 
  xor ecx, ecx
     call ExitProcess
@@ -80,6 +92,180 @@ Print:
     mov qword[rsp + 32], 0
     call WriteConsoleW
     add rsp, 40
+    ret
+ConverterInt:
+    ; Guarda o endereço de retorno
+    pop r11
+
+    ; Preserva registradores não voláteis
+    push rbx
+    push rsi
+
+    ; Recebe INT32 em ECX
+    movsxd rax, ecx
+
+    xor ebx, ebx
+
+    ; Verifica sinal
+    test rax, rax
+    jns .positivo
+
+    mov ebx, 1
+    neg rax
+
+.positivo:
+    ; Começa pela última posição do buffer
+    lea rsi, [rel buffer_print_int + 22]
+
+    ; Terminador UTF-16
+    mov word [rsi], 0
+
+    mov ecx, 10
+
+.converter:
+    xor edx, edx
+    div rcx
+
+    add dl, '0'
+
+    ; Cada caractere UTF-16 ocupa 2 bytes
+    sub rsi, 2
+    mov [rsi], dx
+
+    test rax, rax
+    jnz .converter
+
+    ; Adiciona sinal negativo
+    test ebx, ebx
+    jz .fim
+
+    sub rsi, 2
+    mov word [rsi], '-'
+
+.fim:
+    ; Calcula quantidade de caracteres
+    lea rdx, [rel buffer_print_int + 22]
+    sub rdx, rsi
+    shr rdx, 1
+
+    ; Guarda endereço do texto
+    mov r8, rsi
+
+    ; Restaura registradores
+    pop rsi
+    pop rbx
+
+    ; Retorna endereço e tamanho na pilha
+    push r8
+    push rdx
+    push r11
+    ret
+ConverterDecimal:
+    ; Guarda o endereço de retorno
+    pop r11
+
+    ; Recupera o sinal do float
+    movd eax, xmm0
+    mov r9d, eax
+    shr r9d, 31
+
+    ; Remove o sinal para trabalhar com valor positivo
+    and eax, 0x7FFFFFFF
+    movd xmm0, eax
+
+    ; Verifica se o valor está dentro do limite suportado
+    ; Também rejeita NaN e infinito
+    ucomiss xmm0, [rel limite_decimal]
+    jp .erro
+    ja .erro
+
+    ; Multiplica por 100 para trabalhar com duas casas
+    mulss xmm0, [rel fator_100]
+
+    ; Arredondamento
+    addss xmm0, [rel meio_decimal]
+
+    ; Converte para inteiro de 64 bits
+    cvttss2si rax, xmm0
+
+    ; Divide por 100:
+    ; RAX = parte inteira
+    ; RDX = parte decimal (0 a 99)
+    xor edx, edx
+    mov ecx, 100
+    div rcx
+
+    ; Guarda parte inteira
+    mov r10, rax
+
+    ; Inicia buffer pelo final
+    lea r8, [rel buffer_print_decimal + 62]
+
+    ; Terminador UTF-16
+    mov word [r8], 0
+
+    ; Converte as duas casas decimais
+    mov eax, edx
+    xor edx, edx
+    mov ecx, 10
+    div ecx
+
+    ; Última casa decimal
+    add dl, '0'
+    sub r8, 2
+    mov [r8], dx
+
+    ; Primeira casa decimal
+    add al, '0'
+    sub r8, 2
+    mov [r8], ax
+
+    ; Separador decimal
+    sub r8, 2
+    mov word [r8], '.'
+
+    ; Converte parte inteira
+    mov rax, r10
+    mov ecx, 10
+
+.inteiro:
+    xor edx, edx
+    div rcx
+
+    add dl, '0'
+    sub r8, 2
+    mov [r8], dx
+
+    test rax, rax
+    jnz .inteiro
+
+    ; Adiciona sinal negativo
+    test r9d, r9d
+    jz .finalizar
+
+    sub r8, 2
+    mov word [r8], '-'
+
+.finalizar:
+    ; Calcula quantidade de caracteres
+    lea rdx, [rel buffer_print_decimal + 62]
+    sub rdx, r8
+    shr rdx, 1
+
+    jmp .retornar
+
+.erro:
+    ; Exibe ERRO para valores inválidos ou fora do limite
+    lea r8, [rel erro_decimal]
+    mov edx, 4
+
+.retornar:
+    ; Retorna endereço e tamanho na pilha
+    push r8
+    push rdx
+
+    ; Restaura endereço de retorno
+    push r11
     ret
 ReadInt:
     push rsi

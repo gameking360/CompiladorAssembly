@@ -53,7 +53,7 @@ namespace Compilador.Lexico
                     return token;
                 }
 
-                if(atual == ';')
+                if(atual == ';' || atual == ')')
                 {
                     if (sb.Length == 0)
                         return GetToken(atual.ToString());

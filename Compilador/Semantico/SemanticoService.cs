@@ -23,14 +23,16 @@ namespace Compilador.Semantico
 
         private StringBuilder funcoesPersonalizadas;
         private Dictionary<string, string> tabelaSimbolos = new Dictionary<string, string>();
-        private string operadorRelacional;
+
         private Tipos? tipo;
 
-
         private bool isInFunctionDeclaration;
+
+        private bool isPrintOperation;
         private List<Token> expressaoInicializacao;
 
         private HashSet<string> variaveis;
+        private Dictionary<string,Tipos> tiposVariaveis;
 
         public SemanticoService()
         {
@@ -43,9 +45,11 @@ namespace Compilador.Semantico
             this.funcoesPersonalizadas = new StringBuilder();
             this.constantes = new HashSet<string>();
             this.isInFunctionDeclaration = false;
+            this.isPrintOperation = false;
             this.expressaoInicializacao = new List<Token>();
             this.tipo = null;
             this.variaveis = new HashSet<string>();
+            this.tiposVariaveis = new Dictionary<string, Tipos>();
         }
 
 
@@ -55,6 +59,7 @@ namespace Compilador.Semantico
             {
                 var primeiroDaFila = token.Dequeue();
                 if (action == 6 && this.isInFunctionDeclaration) this.isInFunctionDeclaration = false;
+                if (action == 7 && !this.isPrintOperation) this.isPrintOperation = true;
                 this.ExecutarAcao(primeiroDaFila.GetTokenType(), primeiroDaFila);
             }
 
@@ -216,6 +221,38 @@ namespace Compilador.Semantico
         {
             if (isInFunctionDeclaration) this.expressaoInicializacao.Add(token);
             this.identificadores.Add(token.GetLexeme());
+
+            if(this.tipo is not null)this.tiposVariaveis.TryAdd(token.GetLexeme(), this.tipo.Value);
+
+
+            if (this.isPrintOperation)
+            {
+
+                var temTipo = this.tiposVariaveis.TryGetValue(token.GetLexeme(), out var tipoAux);
+
+                switch (tipoAux)
+                {
+                    case Tipos.INT:
+
+                        this.AdicionarCodigo($"mov ecx, [rel {token.GetLexeme()}]");
+                        this.AdicionarCodigo(@"call ConverterInt");
+                        break;
+
+                    case Tipos.DECIMAL:
+                        this.AdicionarCodigo($"mov eax, [rel {token.GetLexeme()}]");
+                        this.AdicionarCodigo(@"movd xmm0, eax
+                                               call ConverterDecimal");
+                        break;
+
+                    default:
+                        this.AdicionarAPilhaString(token, false);
+                        break;
+                
+                }
+
+
+            }
+
         }
 
       
@@ -224,13 +261,24 @@ namespace Compilador.Semantico
         private void AdicionarAPilhaString(Token token, bool isConstant = true)
         {
 
+            if (isConstant)
+            {
+                this.AdicionarCodigo($"lea rax, [{constantes.Last()}] \n" +
+    $"push rax\n" +
+    $"mov eax, {constantes.Last()}_len\n" +
+    $"push rax");
+                return;
+            }
 
-            this.AdicionarCodigo($"lea rax, [{constantes.Last()}] \n" +
+            this.AdicionarCodigo($"lea rax, [rel {token.GetLexeme()}]\n" +
                 $"push rax\n" +
-                $"mov eax, {constantes.Last()}_len\n" +
+                $"mov eax, {token.GetLexeme()}_len\n" +
                 $"push rax");
 
 
+
+
+            
         }
 
 
@@ -238,6 +286,10 @@ namespace Compilador.Semantico
         {
             this.declaracaoVariaveis.AppendLine("section .data");
             this.declaracaoVariaveis.AppendLine("mascara_sinal dd 0x80000000");
+            this.declaracaoVariaveis.AppendLine(@"fator_100       dd 100.0
+meio_decimal    dd 0.5
+limite_decimal  dd 9.0e16
+erro_decimal    dw 69, 82, 82, 79, 0 ; ERRO");
             this.CriarCodigoBase();
             this.declaracaoFuncoes.AppendLine("default rel");
             this.declaracaoFuncoes.AppendLine("extern ExitProcess");
@@ -284,6 +336,8 @@ namespace Compilador.Semantico
             this.sessaoEspecial.AppendLine("console_input resq 1");
             this.sessaoEspecial.AppendLine(@"buffer_input resw 257
                                             chars_read   resd 1");
+            this.sessaoEspecial.AppendLine("buffer_print_decimal resw 32");
+            this.sessaoEspecial.AppendLine("buffer_print_int resw 12");
         }
 
         private void IniciarDeclaracaoFuncoes()
@@ -297,6 +351,181 @@ namespace Compilador.Semantico
             this.funcoesPersonalizadas.AppendLine("    add rsp, 40");
             this.funcoesPersonalizadas.AppendLine("    ret");
 
+            this.funcoesPersonalizadas.AppendLine(@"ConverterInt:
+    ; Guarda o endereço de retorno
+    pop r11
+
+    ; Preserva registradores não voláteis
+    push rbx
+    push rsi
+
+    ; Recebe INT32 em ECX
+    movsxd rax, ecx
+
+    xor ebx, ebx
+
+    ; Verifica sinal
+    test rax, rax
+    jns .positivo
+
+    mov ebx, 1
+    neg rax
+
+.positivo:
+    ; Começa pela última posição do buffer
+    lea rsi, [rel buffer_print_int + 22]
+
+    ; Terminador UTF-16
+    mov word [rsi], 0
+
+    mov ecx, 10
+
+.converter:
+    xor edx, edx
+    div rcx
+
+    add dl, '0'
+
+    ; Cada caractere UTF-16 ocupa 2 bytes
+    sub rsi, 2
+    mov [rsi], dx
+
+    test rax, rax
+    jnz .converter
+
+    ; Adiciona sinal negativo
+    test ebx, ebx
+    jz .fim
+
+    sub rsi, 2
+    mov word [rsi], '-'
+
+.fim:
+    ; Calcula quantidade de caracteres
+    lea rdx, [rel buffer_print_int + 22]
+    sub rdx, rsi
+    shr rdx, 1
+
+    ; Guarda endereço do texto
+    mov r8, rsi
+
+    ; Restaura registradores
+    pop rsi
+    pop rbx
+
+    ; Retorna endereço e tamanho na pilha
+    push r8
+    push rdx
+    push r11
+    ret");
+
+            this.funcoesPersonalizadas.AppendLine(@"ConverterDecimal:
+    ; Guarda o endereço de retorno
+    pop r11
+
+    ; Recupera o sinal do float
+    movd eax, xmm0
+    mov r9d, eax
+    shr r9d, 31
+
+    ; Remove o sinal para trabalhar com valor positivo
+    and eax, 0x7FFFFFFF
+    movd xmm0, eax
+
+    ; Verifica se o valor está dentro do limite suportado
+    ; Também rejeita NaN e infinito
+    ucomiss xmm0, [rel limite_decimal]
+    jp .erro
+    ja .erro
+
+    ; Multiplica por 100 para trabalhar com duas casas
+    mulss xmm0, [rel fator_100]
+
+    ; Arredondamento
+    addss xmm0, [rel meio_decimal]
+
+    ; Converte para inteiro de 64 bits
+    cvttss2si rax, xmm0
+
+    ; Divide por 100:
+    ; RAX = parte inteira
+    ; RDX = parte decimal (0 a 99)
+    xor edx, edx
+    mov ecx, 100
+    div rcx
+
+    ; Guarda parte inteira
+    mov r10, rax
+
+    ; Inicia buffer pelo final
+    lea r8, [rel buffer_print_decimal + 62]
+
+    ; Terminador UTF-16
+    mov word [r8], 0
+
+    ; Converte as duas casas decimais
+    mov eax, edx
+    xor edx, edx
+    mov ecx, 10
+    div ecx
+
+    ; Última casa decimal
+    add dl, '0'
+    sub r8, 2
+    mov [r8], dx
+
+    ; Primeira casa decimal
+    add al, '0'
+    sub r8, 2
+    mov [r8], ax
+
+    ; Separador decimal
+    sub r8, 2
+    mov word [r8], '.'
+
+    ; Converte parte inteira
+    mov rax, r10
+    mov ecx, 10
+
+.inteiro:
+    xor edx, edx
+    div rcx
+
+    add dl, '0'
+    sub r8, 2
+    mov [r8], dx
+
+    test rax, rax
+    jnz .inteiro
+
+    ; Adiciona sinal negativo
+    test r9d, r9d
+    jz .finalizar
+
+    sub r8, 2
+    mov word [r8], '-'
+
+.finalizar:
+    ; Calcula quantidade de caracteres
+    lea rdx, [rel buffer_print_decimal + 62]
+    sub rdx, r8
+    shr rdx, 1
+
+    jmp .retornar
+
+.erro:
+    ; Exibe ERRO para valores inválidos ou fora do limite
+    lea r8, [rel erro_decimal]
+    mov edx, 4
+
+.retornar:
+    ; Retorna endereço e tamanho na pilha
+    push r8
+    push rdx
+
+    ; Restaura endereço de retorno
+    push r11
+    ret");
 
             this.funcoesPersonalizadas.AppendLine(@"ReadInt:
     push rsi

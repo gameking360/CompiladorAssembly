@@ -1,6 +1,5 @@
 int a;
 a = 20 + 5;
-
 int b = Read("Digite um valor");
-
 int c = a + b;
+Print(c);
