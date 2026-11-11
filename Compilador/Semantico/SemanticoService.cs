@@ -169,7 +169,7 @@ namespace Compilador.Semantico
                                     pop rdx
                                     call Print");
 
-            this.pilha.Pop();
+           // this.pilha.Pop();
             //this.tipo = null;
         }
 
@@ -272,13 +272,15 @@ namespace Compilador.Semantico
 
             this.AdicionarCodigo($"lea rax, [rel {token.GetLexeme()}]\n" +
                 $"push rax\n" +
-                $"mov eax, {token.GetLexeme()}_len\n" +
+                $"mov eax, [rel chars_read]\n" +
                 $"push rax");
 
-
-
-
             
+
+
+
+
+
         }
 
 
@@ -533,7 +535,7 @@ erro_decimal    dw 69, 82, 82, 79, 0 ; ERRO");
     sub rsp, 48
     mov [rsp + 32], rcx
     lea rsi, [rel buffer_input]
-
+    mov rcx, rsi
     call Read
 
     xor eax, eax
@@ -600,10 +602,14 @@ erro_decimal    dw 69, 82, 82, 79, 0 ; ERRO");
   push rsi
     sub rsp, 56
 
-    lea rsi, [rel buffer_input]
+lea rsi, [rel buffer_input]
 
-    mov [rsp + 32], rcx
-    call Read
+; Preserva o endereço da variável decimal que receberá o resultado
+mov [rsp + 32], rcx
+
+; Passa o buffer de entrada para Read
+mov rcx, rsi
+call Read
 
     xor eax, eax            ; Acumulador
     xor ecx, ecx            ; Índice
@@ -732,10 +738,12 @@ erro_decimal    dw 69, 82, 82, 79, 0 ; ERRO");
             this.funcoesPersonalizadas.AppendLine(@" Read:
     push rsi
     sub rsp, 48
-    lea rsi, [rel buffer_input]
+
+    ; RCX recebe o endereço da variável
+    mov rsi, rcx
 
     mov rcx, [rel console_input]
-    lea rdx, [rel buffer_input]
+    mov rdx, rsi
     mov r8d, 256
     lea r9, [rel chars_read]
     mov qword [rsp + 32], 0
@@ -777,8 +785,7 @@ erro_decimal    dw 69, 82, 82, 79, 0 ; ERRO");
     mov dword [rel chars_read], 0
     add rsp, 48
     pop rsi
-    ret
-                                                    ");
+    ret");
 
         }
 
@@ -850,13 +857,28 @@ erro_decimal    dw 69, 82, 82, 79, 0 ; ERRO");
                 {
                     if(!this.variaveis.TryGetValue(identificador, out _))
                     {
-                        this.declaracaoVariaveis.Append($"{identificador} {tipo} ");
 
-                        var valor = this.expressaoInicializacao.Count == 1 ? this.expressaoInicializacao.First().GetLexeme()
-                                                                           : "0";
-
-                        this.declaracaoVariaveis.Append(valor + "\n");
                         
+                        if(this.tipo != Tipos.STRING )
+                        {
+
+                            this.declaracaoVariaveis.Append($"{identificador} {tipo} ");
+
+                            var valor = this.expressaoInicializacao.Count == 1 ? this.expressaoInicializacao.First().GetLexeme()
+                                                                               : "0";
+
+                            this.declaracaoVariaveis.Append(valor + "\n");
+
+                        }
+                        else
+                        {
+                            this.AdicionarSessaoEspecial($"{identificador} resw 257");
+                            this.AdicionarSessaoEspecial($"{identificador}_len resd 1");
+                            //this.declaracaoVariaveis.Append($"{identificador}_len equ ($ - {identificador}) / 2");
+
+                        }
+
+
                         this.variaveis.Add(identificador);
                     }
 
@@ -876,12 +898,26 @@ erro_decimal    dw 69, 82, 82, 79, 0 ; ERRO");
                 {
                     if (!this.variaveis.TryGetValue(identificador, out _))
                     {
-                        this.declaracaoVariaveis.Append($"{identificador} {tipo} ");
 
-                        var valor = "0";
+                        if(this.tipo != Tipos.STRING )
+                        {
 
-                        this.declaracaoVariaveis.Append(valor + "\n");
+                            this.declaracaoVariaveis.Append($"{identificador} {tipo} ");
+
+                            var valor = "0";
+
+                            this.declaracaoVariaveis.Append(valor + "\n");
+                        }
+                        else
+                        {
+                            this.AdicionarSessaoEspecial($"{identificador} resw 257");
+                            this.AdicionarSessaoEspecial($"{identificador}_len resd 1");
+
+
+                        }
                         this.variaveis.Add(identificador);
+
+
                     }
                 }
             }
@@ -889,6 +925,7 @@ erro_decimal    dw 69, 82, 82, 79, 0 ; ERRO");
             identificadores.Clear();
             this.expressaoInicializacao.Clear();
             this.isInFunctionDeclaration = false;
+            this.isPrintOperation = false;
             this.tipo = null;
         }
 

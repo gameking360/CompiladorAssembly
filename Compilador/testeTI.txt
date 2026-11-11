@@ -1,5 +1,9 @@
-int a;
-a = 20 + 5;
-int b = Read("Digite um valor");
-int c = a + b;
-Print(c);
+int a = Read("Digite um valor:");
+Print("\nCalculando");
+
+a = a + 10;
+Print(a);
+
+
+string texto = Read("\nDigite seu texto: ");
+Print(texto);

@@ -9,11 +9,13 @@ fator_100       dd 100.0
 meio_decimal    dd 0.5
 limite_decimal  dd 9.0e16
 erro_decimal    dw 69, 82, 82, 79, 0 ; ERRO
-a dd 0
-constante_1 db 68, 0, 105, 0, 103, 0, 105, 0, 116, 0, 101, 0, 32, 0, 117, 0, 109, 0, 32, 0, 118, 0, 97, 0, 108, 0, 111, 0, 114, 0, 0
+constante_1 db 68, 0, 105, 0, 103, 0, 105, 0, 116, 0, 101, 0, 32, 0, 117, 0, 109, 0, 32, 0, 118, 0, 97, 0, 108, 0, 111, 0, 114, 0, 58, 0, 0
 constante_1_len equ ($ - constante_1) / 2
-b dd 0
-c dd 0
+a dd 0
+constante_2 db 10, 0, 67, 0, 97, 0, 108, 0, 99, 0, 117, 0, 108, 0, 97, 0, 110, 0, 100, 0, 111, 0, 0
+constante_2_len equ ($ - constante_2) / 2
+constante_3 db 10, 0, 68, 0, 105, 0, 103, 0, 105, 0, 116, 0, 101, 0, 32, 0, 115, 0, 101, 0, 117, 0, 32, 0, 116, 0, 101, 0, 120, 0, 116, 0, 111, 0, 58, 0, 32, 0, 0
+constante_3_len equ ($ - constante_3) / 2
 
 section .bss
 written resd 1
@@ -23,6 +25,8 @@ buffer_input resw 257
                                             chars_read   resd 1
 buffer_print_decimal resw 32
 buffer_print_int resw 12
+texto resw 257
+texto_len resd 1
 
 section .text
 global main
@@ -34,14 +38,6 @@ main:
  mov ecx, -10
  call GetStdHandle
 mov [console_input], rax
-mov eax, 20
-push rax
-mov eax, 5
-mov ecx, eax
-pop rax
-add eax, ecx
-
-mov [rel a], eax
 lea rax, [constante_1] 
 push rax
 mov eax, constante_1_len
@@ -50,19 +46,19 @@ pop rax
                                     mov r8d, eax
                                     pop rdx
                                     call Print
-lea rcx, [rel b]
+lea rcx, [rel a]
 call ReadInt
-mov eax, [rel a]
+lea rax, [constante_2] 
 push rax
-mov eax, [rel b]
-mov ecx, eax
+mov eax, constante_2_len
+push rax
 pop rax
-add eax, ecx
-
-mov [rel c], eax
+                                    mov r8d, eax
+                                    pop rdx
+                                    call Print
 mov eax, [rel a]
 push rax
-mov eax, [rel b]
+mov eax, 10
 mov ecx, eax
 pop rax
 add eax, ecx
@@ -70,14 +66,32 @@ add eax, ecx
 mov [rel a], eax
 mov eax, [rel a]
 push rax
-mov eax, [rel b]
+mov eax, 10
 mov ecx, eax
 pop rax
 add eax, ecx
 
-mov [rel b], eax
-mov ecx, [rel c]
+mov [rel a], eax
+mov ecx, [rel a]
 call ConverterInt
+pop rax
+                                    mov r8d, eax
+                                    pop rdx
+                                    call Print
+lea rax, [constante_3] 
+push rax
+mov eax, constante_3_len
+push rax
+pop rax
+                                    mov r8d, eax
+                                    pop rdx
+                                    call Print
+lea rcx, [rel texto]
+call Read
+lea rax, [rel texto]
+push rax
+mov eax, [rel chars_read]
+push rax
 pop rax
                                     mov r8d, eax
                                     pop rdx
@@ -273,7 +287,7 @@ ReadInt:
     sub rsp, 48
     mov [rsp + 32], rcx
     lea rsi, [rel buffer_input]
-
+    mov rcx, rsi
     call Read
 
     xor eax, eax
@@ -339,10 +353,14 @@ ReadInt:
   push rsi
     sub rsp, 56
 
-    lea rsi, [rel buffer_input]
+lea rsi, [rel buffer_input]
 
-    mov [rsp + 32], rcx
-    call Read
+; Preserva o endereço da variável decimal que receberá o resultado
+mov [rsp + 32], rcx
+
+; Passa o buffer de entrada para Read
+mov rcx, rsi
+call Read
 
     xor eax, eax            ; Acumulador
     xor ecx, ecx            ; Índice
@@ -470,10 +488,12 @@ ReadInt:
  Read:
     push rsi
     sub rsp, 48
-    lea rsi, [rel buffer_input]
+
+    ; RCX recebe o endereço da variável
+    mov rsi, rcx
 
     mov rcx, [rel console_input]
-    lea rdx, [rel buffer_input]
+    mov rdx, rsi
     mov r8d, 256
     lea r9, [rel chars_read]
     mov qword [rsp + 32], 0
@@ -516,5 +536,4 @@ ReadInt:
     add rsp, 48
     pop rsi
     ret
-                                                    
 
